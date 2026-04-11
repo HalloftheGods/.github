@@ -1,0 +1,45 @@
+name: Update WP Plugin Version
+on:
+  workflow_call:
+    inputs:
+      version_string:
+        required: true
+        type: string
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update PHP Plugin Versions
+        id: update
+        run: |
+          CHANGES_MADE=false
+          VERSION="${{ inputs.version_string }}"
+          
+          # Plugin main files are typically in the root of the submodule and end in .php
+          for plugin_file in *.php; do
+            if [ -f "$plugin_file" ]; then
+              # Replace Plugin Header
+              sed -i -E "s/^ \* Version:.*/ * Version:           ${VERSION}/g" "$plugin_file"
+              
+              # Replace Constants like XOPHZ_COMPASS_VERSION
+              sed -i -E "s/(define\( *'[A-Z_]+_VERSION' *, *').*(' *\);)/\1${VERSION}\2/g" "$plugin_file"
+              
+              CHANGES_MADE=true
+            fi
+          done
+          
+          if [ "$CHANGES_MADE" = true ]; then
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            
+            git add *.php
+            git diff --staged --quiet || git commit -m "chore: auto-bump version to ${VERSION} [skip ci]"
+            git push
+          fi

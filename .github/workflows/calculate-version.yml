@@ -1,0 +1,18 @@
+name: Calculate Version
+on:
+  workflow_call:
+    outputs:
+      version_string:
+        description: "The calculated version string (YY.M.D)"
+        value: ${{ jobs.calculate.outputs.version_string }}
+
+jobs:
+  calculate:
+    runs-on: ubuntu-latest
+    outputs:
+      version_string: ${{ steps.calc.outputs.VERSION }}
+    steps:
+      - id: calc
+        run: |
+          DATE=$(date +'%y.%-m.%-d')
+          echo "VERSION=${DATE}" >> $GITHUB_OUTPUT
