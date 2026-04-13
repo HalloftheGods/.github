@@ -18,4 +18,4 @@ jobs:
           HOUR=$(date +'%H')
           MIN=$(date +'%M')
           RC_MINS=$(( 10#$HOUR * 60 + 10#$MIN ))
-          echo "VERSION=${DATE}-rc.${RC_MINS}" >> $GITHUB_OUTPUT
+          echo "VERSION=${DATE}.${RC_MINS}" >> $GITHUB_OUTPUT
