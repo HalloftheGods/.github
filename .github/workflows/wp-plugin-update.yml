@@ -45,6 +45,12 @@ jobs:
             fi
             CHANGES_MADE=true
           fi
+
+          if [ -f "composer.json" ]; then
+            sed -i -E "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" composer.json
+            git add composer.json
+            CHANGES_MADE=true
+          fi
           
           if [ "$CHANGES_MADE" = true ]; then
             git config --global user.name "github-actions[bot]"
