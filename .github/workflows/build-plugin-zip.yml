@@ -1,0 +1,56 @@
+name: Build Plugin Zip
+on:
+  workflow_call:
+    inputs:
+      plugin_slug:
+        description: 'The directory name the plugin should have (e.g. xophz-compass)'
+        required: true
+        type: string
+      version:
+        description: 'Version string for the zip filename'
+        required: true
+        type: string
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ inputs.version }}
+          fetch-depth: 0
+
+      - name: Build Plugin Zip
+        run: |
+          echo "Packaging plugin as ${{ inputs.plugin_slug }}..."
+          
+          # Create a temp directory for packaging
+          TEMP_DIR="$(mktemp -d)/${{ inputs.plugin_slug }}"
+          mkdir -p "$TEMP_DIR"
+          
+          # Use rsync to copy files, excluding development directories
+          rsync -rq --exclude='.git/' \
+                    --exclude='.github/' \
+                    --exclude='node_modules/' \
+                    --exclude='*.zip' \
+                    ./ "$TEMP_DIR/"
+                   
+          # Zip the contents
+          cd "$(dirname "$TEMP_DIR")"
+          echo "Creating zip file..."
+          zip -rq "${{ inputs.plugin_slug }}-${{ inputs.version }}.zip" "${{ inputs.plugin_slug }}"
+          
+          # Move back to workspace
+          mv "${{ inputs.plugin_slug }}-${{ inputs.version }}.zip" "$GITHUB_WORKSPACE/"
+          echo "Successfully created ${{ inputs.plugin_slug }}-${{ inputs.version }}.zip"
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          name: v${{ inputs.version }}
+          files: ${{ inputs.plugin_slug }}-${{ inputs.version }}.zip
+          generate_release_notes: true
