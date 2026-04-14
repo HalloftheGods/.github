@@ -23,6 +23,9 @@ jobs:
           VERSION="${{ inputs.version_string }}"
           
           # Plugin main files are typically in the root of the submodule and end in .php
+          REPO_NAME="${{ github.event.repository.name }}"
+          GITHUB_UPDATE_URI="https://github.com/HalloftheGods/${REPO_NAME}"
+          
           for plugin_file in *.php; do
             if [ -f "$plugin_file" ]; then
               # Replace Plugin Header
@@ -30,6 +33,11 @@ jobs:
               
               # Replace Constants like XOPHZ_COMPASS_VERSION
               sed -i -E "s/(define\( *'[A-Z_]+_VERSION' *, *').*(' *\);)/\1${VERSION}\2/g" "$plugin_file"
+              
+              # Inject Update URI if missing (prevents wordpress.org slug collisions)
+              if ! grep -q "Update URI:" "$plugin_file"; then
+                sed -i "/ \* Domain Path:/a\ * Update URI:        ${GITHUB_UPDATE_URI}" "$plugin_file"
+              fi
               
               git add "$plugin_file"
               CHANGES_MADE=true
