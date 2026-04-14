@@ -38,7 +38,7 @@ jobs:
           
           # Also bump package.json if it exists
           if [ -f "package.json" ]; then
-            npm version ${VERSION} --no-git-tag-version --allow-same-version
+            sed -i -E "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" package.json
             git add package.json
             if [ -f "package-lock.json" ]; then
               git add package-lock.json
