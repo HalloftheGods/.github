@@ -1,0 +1,35 @@
+name: Daily Final Version
+on:
+  workflow_call:
+    inputs:
+      plugin_slug:
+        description: 'The directory name the plugin should have'
+        required: false
+        type: string
+
+jobs:
+  update-source:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Calculate 3-part Version
+        id: calc
+        run: |
+          VERSION=$(date +'%y.%-m.%-d')
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Update Files
+        uses: HalloftheGods/.github/.github/workflows/wp-plugin-update.yml@main
+        with:
+          version_string: ${{ steps.calc.outputs.VERSION }}
+
+  finalize:
+    needs: update-source
+    uses: HalloftheGods/.github/.github/workflows/finalize-rc-releases.yml@main

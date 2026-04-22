@@ -1,0 +1,120 @@
+name: Finalize RC Releases
+on:
+  workflow_call:
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # --------------------------------------------------------------------
+      # STEP 1: Discovery
+      # Find all 4-part RC tags and figure out the unique days we need to process
+      # --------------------------------------------------------------------
+      - name: Discover Release Candidates
+        id: discovery
+        run: |
+          echo "Finding all 4-part release candidate tags (e.g. v26.4.21.1362)..."
+          
+          # Find tags matching vYY.MM.DD.MMMM
+          RC_TAGS=$(git tag -l | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' || true)
+          
+          if [ -z "$RC_TAGS" ]; then
+              echo "No RC tags found. Exiting gracefully."
+              echo "has_rcs=false" >> $GITHUB_OUTPUT
+              exit 0
+          fi
+          
+          echo "has_rcs=true" >> $GITHUB_OUTPUT
+          
+          # Extract just the 3-part date prefixes (e.g. v26.4.21)
+          PREFIXES=$(echo "$RC_TAGS" | grep -oE '^v[0-9]+\.[0-9]+\.[0-9]+' | sort -u)
+          
+          # Save to temporary files to share between steps cleanly
+          echo "$PREFIXES" > /tmp/prefixes.txt
+          echo "$RC_TAGS" > /tmp/rc_tags.txt
+
+      # --------------------------------------------------------------------
+      # STEP 2: Promotion
+      # For each day, pick the RC with the most minutes, and make it official
+      # --------------------------------------------------------------------
+      - name: Promote Latest RCs to Final Releases
+        if: steps.discovery.outputs.has_rcs == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PREFIXES=$(cat /tmp/prefixes.txt)
+          RC_TAGS=$(cat /tmp/rc_tags.txt)
+          
+          for DAY_PREFIX in $PREFIXES; do
+            echo "========================================"
+            echo "Promoting Latest RC for: $DAY_PREFIX"
+            echo "========================================"
+            
+            # Find the RC tag with the highest minute count
+            LATEST_RC=$(echo "$RC_TAGS" | grep "^${DAY_PREFIX}\." | sort -t. -k4 -n | tail -n1)
+            echo "Selected Target: $LATEST_RC"
+            
+            # Skip if the final 3-part release already exists
+            if git rev-parse "$DAY_PREFIX" >/dev/null 2>&1; then
+              echo "Final release $DAY_PREFIX already exists. Skipping promotion."
+              continue
+            fi
+            
+            echo "Downloading assets from $LATEST_RC..."
+            mkdir -p tmp_assets
+            gh release download "$LATEST_RC" -D tmp_assets || echo "No assets found."
+            
+            # Rename the .zip files to match the 3-part final release name
+            ASSET_ARGS=""
+            if [ "$(ls -A tmp_assets 2>/dev/null)" ]; then
+              for asset in tmp_assets/*; do
+                if [ -f "$asset" ]; then
+                  # Example: plugin-v26.4.21.1362.zip -> plugin-v26.4.21.zip
+                  NEW_ASSET=$(echo "$asset" | sed "s/${LATEST_RC#v}/${DAY_PREFIX#v}/")
+                  mv "$asset" "$NEW_ASSET"
+                  ASSET_ARGS="$ASSET_ARGS $NEW_ASSET"
+                fi
+              done
+            fi
+            
+            echo "Creating Official Release: $DAY_PREFIX"
+            COMMIT_SHA=$(git rev-list -n 1 "$LATEST_RC")
+            
+            gh release create "$DAY_PREFIX" $ASSET_ARGS \
+              --title "$DAY_PREFIX" \
+              --notes "Official final release for $DAY_PREFIX" \
+              --target "$COMMIT_SHA" || true
+              
+            rm -rf tmp_assets
+          done
+
+      # --------------------------------------------------------------------
+      # STEP 3: Cleanup
+      # Wipe out all the 4-part RC releases to save space and reduce clutter
+      # --------------------------------------------------------------------
+      - name: Clean Up Old RC Releases
+        if: steps.discovery.outputs.has_rcs == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RC_TAGS=$(cat /tmp/rc_tags.txt)
+          
+          echo "========================================"
+          echo "Deleting All Temporary RC Releases"
+          echo "========================================"
+          
+          for RC in $RC_TAGS; do
+            echo "Deleting $RC..."
+            gh release delete "$RC" --cleanup-tag -y || true
+            git push origin --delete "$RC" 2>/dev/null || true
+          done
+          
+          echo "Cleanup successfully completed!"
