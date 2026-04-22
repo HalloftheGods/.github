@@ -8,27 +8,21 @@ on:
         type: string
 
 jobs:
-  update-source:
+  get-version:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    outputs:
+      version_string: ${{ steps.calc.outputs.VERSION }}
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: main
-
-      - name: Calculate 3-part Version
-        id: calc
+      - id: calc
         run: |
           VERSION=$(date +'%y.%-m.%-d')
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
 
-      - name: Update Files
-        uses: HalloftheGods/.github/.github/workflows/wp-plugin-update.yml@main
-        with:
-          version_string: ${{ steps.calc.outputs.VERSION }}
+  update-source:
+    needs: get-version
+    uses: HalloftheGods/.github/.github/workflows/wp-plugin-update.yml@main
+    with:
+      version_string: ${{ needs.get-version.outputs.version_string }}
 
   finalize:
     needs: update-source
