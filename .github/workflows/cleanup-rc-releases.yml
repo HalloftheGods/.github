@@ -1,3 +1,7 @@
 name: Cleanup RC Releases
 on:
   workflow_dispatch:
+
+jobs:
+  cleanup:
+    uses: ./.github/workflows/finalize-rc-releases.yml
