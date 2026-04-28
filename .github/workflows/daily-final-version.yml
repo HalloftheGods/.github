@@ -6,6 +6,11 @@ on:
         description: 'The directory name the plugin should have'
         required: false
         type: string
+      skip_zip:
+        description: 'Skip building a release zip and finalizing RC releases'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   check-changes:
@@ -56,7 +61,7 @@ jobs:
 
   release-zip:
     needs: [check-changes, get-version, update-source]
-    if: needs.check-changes.outputs.has_changes == 'true'
+    if: needs.check-changes.outputs.has_changes == 'true' && inputs.skip_zip != true
     uses: HalloftheGods/.github/.github/workflows/build-plugin-zip.yml@main
     with:
       plugin_slug: ${{ inputs.plugin_slug != '' && inputs.plugin_slug || github.event.repository.name }}
@@ -64,5 +69,5 @@ jobs:
 
   finalize:
     needs: [check-changes, release-zip]
-    if: needs.check-changes.outputs.has_changes == 'true'
+    if: needs.check-changes.outputs.has_changes == 'true' && inputs.skip_zip != true
     uses: HalloftheGods/.github/.github/workflows/finalize-rc-releases.yml@main
