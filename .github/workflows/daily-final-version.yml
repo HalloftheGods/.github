@@ -8,7 +8,36 @@ on:
         type: string
 
 jobs:
+  check-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.check.outputs.has_changes }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: check
+        run: |
+          LAST_FINAL_TAG=$(git tag -l | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || true)
+          if [ -z "$LAST_FINAL_TAG" ]; then
+            echo "No previous final tag found. Proceeding with release."
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          COMMITS=$(git log ${LAST_FINAL_TAG}..HEAD --oneline | grep -v "chore: auto-bump version" | grep -v "chore: daily final version" || true)
+          
+          if [ -z "$COMMITS" ]; then
+            echo "No actual code changes since $LAST_FINAL_TAG."
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "Found changes since $LAST_FINAL_TAG."
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
   get-version:
+    needs: check-changes
+    if: needs.check-changes.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     outputs:
       version_string: ${{ steps.calc.outputs.VERSION }}
@@ -19,18 +48,21 @@ jobs:
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
 
   update-source:
-    needs: get-version
+    needs: [check-changes, get-version]
+    if: needs.check-changes.outputs.has_changes == 'true'
     uses: HalloftheGods/.github/.github/workflows/wp-plugin-update.yml@main
     with:
       version_string: ${{ needs.get-version.outputs.version_string }}
 
   release-zip:
-    needs: [get-version, update-source]
+    needs: [check-changes, get-version, update-source]
+    if: needs.check-changes.outputs.has_changes == 'true'
     uses: HalloftheGods/.github/.github/workflows/build-plugin-zip.yml@main
     with:
       plugin_slug: ${{ inputs.plugin_slug != '' && inputs.plugin_slug || github.event.repository.name }}
       version: ${{ needs.get-version.outputs.version_string }}
 
   finalize:
-    needs: release-zip
+    needs: [check-changes, release-zip]
+    if: needs.check-changes.outputs.has_changes == 'true'
     uses: HalloftheGods/.github/.github/workflows/finalize-rc-releases.yml@main
