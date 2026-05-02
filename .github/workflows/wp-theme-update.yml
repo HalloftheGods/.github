@@ -1,0 +1,74 @@
+name: Update WP Theme Version
+on:
+  workflow_call:
+    inputs:
+      version_string:
+        required: true
+        type: string
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply Version Bump
+        id: update
+        run: |
+          CHANGES_MADE=false
+          VERSION="${{ inputs.version_string }}"
+          
+          REPO_NAME="${{ github.event.repository.name }}"
+          GITHUB_UPDATE_URI="https://github.com/HalloftheGods/${REPO_NAME}"
+          
+          if [ -f "style.css" ]; then
+            # Replace Theme Header
+            sed -i -E "s/^Version:.*/Version: ${VERSION}/g" "style.css"
+            
+            # Inject Update URI if missing (prevents wordpress.org slug collisions)
+            if ! grep -q "Update URI:" "style.css"; then
+              sed -i "/^Text Domain:/a Update URI: ${GITHUB_UPDATE_URI}" "style.css"
+            fi
+            
+            git add "style.css"
+            CHANGES_MADE=true
+          fi
+          
+          # Replace Constants like *_VERSION
+          if [ -f "functions.php" ]; then
+            sed -i -E "s/(define\( *'[A-Z_]+_VERSION' *, *').*(' *\);)/\1${VERSION}\2/g" "functions.php"
+            git add "functions.php"
+            git diff --staged --quiet || CHANGES_MADE=true
+          fi
+          
+          # Also bump package.json if it exists
+          if [ -f "package.json" ]; then
+            sed -i -E "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" package.json
+            git add package.json
+            if [ -f "package-lock.json" ]; then
+              git add package-lock.json
+            fi
+            CHANGES_MADE=true
+          fi
+
+          if [ -f "composer.json" ]; then
+            sed -i -E "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" composer.json
+            git add composer.json
+            CHANGES_MADE=true
+          fi
+          
+          if [ "$CHANGES_MADE" = true ]; then
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            
+            git diff --staged --quiet || git commit -m "chore: auto-bump version to ${VERSION} [skip ci]"
+            
+            # Create a tag and push
+            git tag "v${VERSION}"
+            git push
+            git push origin "v${VERSION}"
+          fi
