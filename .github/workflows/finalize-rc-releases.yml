@@ -23,8 +23,8 @@ jobs:
         run: |
           echo "Finding all 4-part release candidate tags (e.g. v26.4.21.1362)..."
           
-          # Find tags matching vYY.MM.DD.MMMM
-          RC_TAGS=$(git tag -l | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' || true)
+          # Find tags matching vYY.M.D-MINS or legacy vYY.M.D.MINS
+          RC_TAGS=$(git tag -l | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+[-.][0-9]+$' || true)
           
           if [ -z "$RC_TAGS" ]; then
               echo "No RC tags found. Exiting gracefully."
@@ -59,7 +59,7 @@ jobs:
             echo "========================================"
             
             # Find the RC tag with the highest minute count
-            LATEST_RC=$(echo "$RC_TAGS" | grep "^${DAY_PREFIX}\." | sort -t. -k4 -n | tail -n1)
+            LATEST_RC=$(echo "$RC_TAGS" | grep -E "^${DAY_PREFIX}[.-]" | sort -V | tail -n1)
             echo "Selected Target: $LATEST_RC"
             
             # Skip if the final 3-part release already exists
