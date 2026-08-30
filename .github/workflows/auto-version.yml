@@ -7,6 +7,9 @@ on:
         required: false
         type: string
 
+permissions:
+  contents: write
+
 jobs:
   get-version:
     uses: HalloftheGods/.github/.github/workflows/calculate-version.yml@main
