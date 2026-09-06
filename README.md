@@ -25,10 +25,12 @@ All shared workflows live under `.github/workflows/` and can be called from any 
 
 ## 🚀 Quick Usage in Plugins & Themes
 
+Workflows automatically detect project type (`theme` if `style.css` is present at repo root, otherwise `plugin`). The slug also defaults to the repository name.
+
 ### Option A: Universal Pipeline (`master.yml`)
 
-#### For WordPress Plugins:
-Add `.github/workflows/compass.yml` to your plugin repository:
+#### Standard Setup (Auto-Detection):
+Add `.github/workflows/compass.yml` to your repository:
 
 ```yaml
 name: Compass
@@ -45,32 +47,17 @@ permissions:
 jobs:
   pipeline:
     uses: HalloftheGods/.github/.github/workflows/master.yml@main
-    with:
-      type: plugin
-      slug: xophz-compass
 ```
 
-#### For WordPress Themes:
-Add `.github/workflows/compass.yml` to your theme repository:
+#### Explicit Overrides (Optional):
 
 ```yaml
-name: Compass
-on:
-  push:
-    branches: [main]
-  schedule:
-    - cron: "59 23 * * *"
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
 jobs:
   pipeline:
     uses: HalloftheGods/.github/.github/workflows/master.yml@main
     with:
-      type: theme
-      slug: xophz-magic-hat
+      type: auto # 'auto' (default), 'theme', or 'plugin'
+      slug: custom-directory-name # defaults to repository name
 ```
 
 ### Option B: Auto Version Only (`auto-version.yml`)
@@ -88,9 +75,6 @@ permissions:
 jobs:
   auto-version:
     uses: HalloftheGods/.github/.github/workflows/auto-version.yml@main
-    with:
-      type: theme # or plugin (default)
-      slug: xophz-magic-hat
 ```
 
 ---

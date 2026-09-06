@@ -3,10 +3,10 @@ on:
   workflow_call:
     inputs:
       type:
-        description: 'Type of project: "plugin" or "theme"'
+        description: 'Type of project: "auto", "plugin", or "theme"'
         required: false
         type: string
-        default: 'plugin'
+        default: 'auto'
       slug:
         description: 'Slug / directory name (e.g. xophz-magic-hat)'
         required: false
@@ -20,34 +20,52 @@ permissions:
   contents: write
 
 jobs:
+  detect-type:
+    runs-on: ubuntu-latest
+    outputs:
+      project_type: ${{ steps.detect.outputs.project_type }}
+    steps:
+      - name: Checkout code
+        if: inputs.type != 'theme' && inputs.type != 'plugin'
+        uses: actions/checkout@v4
+      - id: detect
+        run: |
+          if [ "${{ inputs.type }}" = "theme" ] || [ "${{ inputs.type }}" = "plugin" ]; then
+            echo "project_type=${{ inputs.type }}" >> $GITHUB_OUTPUT
+          elif [ -f "style.css" ]; then
+            echo "project_type=theme" >> $GITHUB_OUTPUT
+          else
+            echo "project_type=plugin" >> $GITHUB_OUTPUT
+          fi
+
   get-version:
     uses: HalloftheGods/.github/.github/workflows/calculate-version.yml@main
     
   update-plugin:
-    needs: get-version
-    if: inputs.type != 'theme'
+    needs: [detect-type, get-version]
+    if: needs.detect-type.outputs.project_type != 'theme'
     uses: HalloftheGods/.github/.github/workflows/wp-plugin-update.yml@main
     with:
       version_string: ${{ needs.get-version.outputs.version_string }}
 
   update-theme:
-    needs: get-version
-    if: inputs.type == 'theme'
+    needs: [detect-type, get-version]
+    if: needs.detect-type.outputs.project_type == 'theme'
     uses: HalloftheGods/.github/.github/workflows/wp-theme-update.yml@main
     with:
       version_string: ${{ needs.get-version.outputs.version_string }}
 
   release-plugin-zip:
-    needs: [get-version, update-plugin]
-    if: inputs.type != 'theme'
+    needs: [detect-type, get-version, update-plugin]
+    if: needs.detect-type.outputs.project_type != 'theme'
     uses: HalloftheGods/.github/.github/workflows/build-plugin-zip.yml@main
     with:
       plugin_slug: ${{ inputs.slug != '' && inputs.slug || inputs.plugin_slug != '' && inputs.plugin_slug || github.event.repository.name }}
       version: ${{ needs.get-version.outputs.version_string }}
 
   release-theme-zip:
-    needs: [get-version, update-theme]
-    if: inputs.type == 'theme'
+    needs: [detect-type, get-version, update-theme]
+    if: needs.detect-type.outputs.project_type == 'theme'
     uses: HalloftheGods/.github/.github/workflows/build-theme-zip.yml@main
     with:
       theme_slug: ${{ inputs.slug != '' && inputs.slug || inputs.plugin_slug != '' && inputs.plugin_slug || github.event.repository.name }}

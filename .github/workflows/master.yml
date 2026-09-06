@@ -3,10 +3,10 @@ on:
   workflow_call:
     inputs:
       type:
-        description: 'Type of project: "plugin" or "theme"'
+        description: 'Type of project: "auto", "plugin", or "theme"'
         required: false
         type: string
-        default: 'plugin'
+        default: 'auto'
       slug:
         description: 'Slug / directory name (e.g. xophz-magic-hat)'
         required: false

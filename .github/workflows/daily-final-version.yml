@@ -3,10 +3,10 @@ on:
   workflow_call:
     inputs:
       type:
-        description: 'Type of project: "plugin" or "theme"'
+        description: 'Type of project: "auto", "plugin", or "theme"'
         required: false
         type: string
-        default: 'plugin'
+        default: 'auto'
       slug:
         description: 'Slug / directory name (e.g. xophz-magic-hat)'
         required: false
@@ -29,12 +29,21 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       has_changes: ${{ steps.check.outputs.has_changes }}
+      project_type: ${{ steps.check.outputs.project_type }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - id: check
         run: |
+          if [ "${{ inputs.type }}" = "theme" ] || [ "${{ inputs.type }}" = "plugin" ]; then
+            echo "project_type=${{ inputs.type }}" >> $GITHUB_OUTPUT
+          elif [ -f "style.css" ]; then
+            echo "project_type=theme" >> $GITHUB_OUTPUT
+          else
+            echo "project_type=plugin" >> $GITHUB_OUTPUT
+          fi
+
           LAST_FINAL_TAG=$(git tag -l | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || true)
           if [ -z "$LAST_FINAL_TAG" ]; then
             echo "No previous final tag found. Proceeding with release."
@@ -66,21 +75,21 @@ jobs:
 
   update-plugin:
     needs: [check-changes, get-version]
-    if: needs.check-changes.outputs.has_changes == 'true' && inputs.type != 'theme'
+    if: needs.check-changes.outputs.has_changes == 'true' && needs.check-changes.outputs.project_type != 'theme'
     uses: HalloftheGods/.github/.github/workflows/wp-plugin-update.yml@main
     with:
       version_string: ${{ needs.get-version.outputs.version_string }}
 
   update-theme:
     needs: [check-changes, get-version]
-    if: needs.check-changes.outputs.has_changes == 'true' && inputs.type == 'theme'
+    if: needs.check-changes.outputs.has_changes == 'true' && needs.check-changes.outputs.project_type == 'theme'
     uses: HalloftheGods/.github/.github/workflows/wp-theme-update.yml@main
     with:
       version_string: ${{ needs.get-version.outputs.version_string }}
 
   release-plugin-zip:
     needs: [check-changes, get-version, update-plugin]
-    if: needs.check-changes.outputs.has_changes == 'true' && inputs.skip_zip != true && inputs.type != 'theme'
+    if: needs.check-changes.outputs.has_changes == 'true' && inputs.skip_zip != true && needs.check-changes.outputs.project_type != 'theme'
     uses: HalloftheGods/.github/.github/workflows/build-plugin-zip.yml@main
     with:
       plugin_slug: ${{ inputs.slug != '' && inputs.slug || inputs.plugin_slug != '' && inputs.plugin_slug || github.event.repository.name }}
@@ -88,7 +97,7 @@ jobs:
 
   release-theme-zip:
     needs: [check-changes, get-version, update-theme]
-    if: needs.check-changes.outputs.has_changes == 'true' && inputs.skip_zip != true && inputs.type == 'theme'
+    if: needs.check-changes.outputs.has_changes == 'true' && inputs.skip_zip != true && needs.check-changes.outputs.project_type == 'theme'
     uses: HalloftheGods/.github/.github/workflows/build-theme-zip.yml@main
     with:
       theme_slug: ${{ inputs.slug != '' && inputs.slug || inputs.plugin_slug != '' && inputs.plugin_slug || github.event.repository.name }}
