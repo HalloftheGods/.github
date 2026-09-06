@@ -2,8 +2,17 @@ name: Auto Version and Release
 on:
   workflow_call:
     inputs:
+      type:
+        description: 'Type of project: "plugin" or "theme"'
+        required: false
+        type: string
+        default: 'plugin'
+      slug:
+        description: 'Slug / directory name (e.g. xophz-magic-hat)'
+        required: false
+        type: string
       plugin_slug:
-        description: 'The directory name the plugin should have (e.g. xophz-compass)'
+        description: 'Deprecated alias for slug'
         required: false
         type: string
 
@@ -16,13 +25,30 @@ jobs:
     
   update-plugin:
     needs: get-version
+    if: inputs.type != 'theme'
     uses: HalloftheGods/.github/.github/workflows/wp-plugin-update.yml@main
     with:
       version_string: ${{ needs.get-version.outputs.version_string }}
 
-  release-zip:
+  update-theme:
+    needs: get-version
+    if: inputs.type == 'theme'
+    uses: HalloftheGods/.github/.github/workflows/wp-theme-update.yml@main
+    with:
+      version_string: ${{ needs.get-version.outputs.version_string }}
+
+  release-plugin-zip:
     needs: [get-version, update-plugin]
+    if: inputs.type != 'theme'
     uses: HalloftheGods/.github/.github/workflows/build-plugin-zip.yml@main
     with:
-      plugin_slug: ${{ inputs.plugin_slug != '' && inputs.plugin_slug || github.event.repository.name }}
+      plugin_slug: ${{ inputs.slug != '' && inputs.slug || inputs.plugin_slug != '' && inputs.plugin_slug || github.event.repository.name }}
+      version: ${{ needs.get-version.outputs.version_string }}
+
+  release-theme-zip:
+    needs: [get-version, update-theme]
+    if: inputs.type == 'theme'
+    uses: HalloftheGods/.github/.github/workflows/build-theme-zip.yml@main
+    with:
+      theme_slug: ${{ inputs.slug != '' && inputs.slug || inputs.plugin_slug != '' && inputs.plugin_slug || github.event.repository.name }}
       version: ${{ needs.get-version.outputs.version_string }}

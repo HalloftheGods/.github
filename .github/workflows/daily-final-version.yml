@@ -2,8 +2,17 @@ name: Daily Final Version
 on:
   workflow_call:
     inputs:
+      type:
+        description: 'Type of project: "plugin" or "theme"'
+        required: false
+        type: string
+        default: 'plugin'
+      slug:
+        description: 'Slug / directory name (e.g. xophz-magic-hat)'
+        required: false
+        type: string
       plugin_slug:
-        description: 'The directory name the plugin should have'
+        description: 'Deprecated alias for slug'
         required: false
         type: string
       skip_zip:
@@ -55,22 +64,37 @@ jobs:
           VERSION=$(date +'%y.%-m.%-d')
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
 
-  update-source:
+  update-plugin:
     needs: [check-changes, get-version]
-    if: needs.check-changes.outputs.has_changes == 'true'
+    if: needs.check-changes.outputs.has_changes == 'true' && inputs.type != 'theme'
     uses: HalloftheGods/.github/.github/workflows/wp-plugin-update.yml@main
     with:
       version_string: ${{ needs.get-version.outputs.version_string }}
 
-  release-zip:
-    needs: [check-changes, get-version, update-source]
-    if: needs.check-changes.outputs.has_changes == 'true' && inputs.skip_zip != true
+  update-theme:
+    needs: [check-changes, get-version]
+    if: needs.check-changes.outputs.has_changes == 'true' && inputs.type == 'theme'
+    uses: HalloftheGods/.github/.github/workflows/wp-theme-update.yml@main
+    with:
+      version_string: ${{ needs.get-version.outputs.version_string }}
+
+  release-plugin-zip:
+    needs: [check-changes, get-version, update-plugin]
+    if: needs.check-changes.outputs.has_changes == 'true' && inputs.skip_zip != true && inputs.type != 'theme'
     uses: HalloftheGods/.github/.github/workflows/build-plugin-zip.yml@main
     with:
-      plugin_slug: ${{ inputs.plugin_slug != '' && inputs.plugin_slug || github.event.repository.name }}
+      plugin_slug: ${{ inputs.slug != '' && inputs.slug || inputs.plugin_slug != '' && inputs.plugin_slug || github.event.repository.name }}
+      version: ${{ needs.get-version.outputs.version_string }}
+
+  release-theme-zip:
+    needs: [check-changes, get-version, update-theme]
+    if: needs.check-changes.outputs.has_changes == 'true' && inputs.skip_zip != true && inputs.type == 'theme'
+    uses: HalloftheGods/.github/.github/workflows/build-theme-zip.yml@main
+    with:
+      theme_slug: ${{ inputs.slug != '' && inputs.slug || inputs.plugin_slug != '' && inputs.plugin_slug || github.event.repository.name }}
       version: ${{ needs.get-version.outputs.version_string }}
 
   finalize:
-    needs: [check-changes, release-zip]
-    if: needs.check-changes.outputs.has_changes == 'true' && inputs.skip_zip != true
+    needs: [check-changes, release-plugin-zip, release-theme-zip]
+    if: always() && (needs['release-plugin-zip'].result == 'success' || needs['release-theme-zip'].result == 'success')
     uses: HalloftheGods/.github/.github/workflows/finalize-rc-releases.yml@main

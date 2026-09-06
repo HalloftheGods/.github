@@ -11,7 +11,7 @@ All shared workflows live under `.github/workflows/` and can be called from any 
 | Workflow | Path | Description |
 | :--- | :--- | :--- |
 | **Pipeline (Master)** | `.github/workflows/master.yml` | Combined runner for `auto-version` (push/dispatch) and `daily-final` (schedule). |
-| **Auto Version** | `.github/workflows/auto-version.yml` | Calculates RC version, updates plugin headers/JSON, tags, and builds release zip. |
+| **Auto Version** | `.github/workflows/auto-version.yml` | Calculates RC version, updates plugin or theme headers/JSON, tags, and builds release zip. |
 | **Daily Final Version** | `.github/workflows/daily-final-version.yml` | Daily batch workflow to promote latest RC to official daily release (`vYY.M.D`). |
 | **Calculate Version** | `.github/workflows/calculate-version.yml` | Generates standard date-minute version string (`YY.M.D-MINS`). |
 | **WP Plugin Update** | `.github/workflows/wp-plugin-update.yml` | Injects version numbers into PHP headers, constants, `package.json`, and `composer.json`. |
@@ -23,10 +23,12 @@ All shared workflows live under `.github/workflows/` and can be called from any 
 
 ---
 
-## 🚀 Quick Usage in Plugins & Repos
+## 🚀 Quick Usage in Plugins & Themes
 
 ### Option A: Universal Pipeline (`master.yml`)
-Add `.github/workflows/compass.yml` to your plugin repo:
+
+#### For WordPress Plugins:
+Add `.github/workflows/compass.yml` to your plugin repository:
 
 ```yaml
 name: Compass
@@ -43,6 +45,32 @@ permissions:
 jobs:
   pipeline:
     uses: HalloftheGods/.github/.github/workflows/master.yml@main
+    with:
+      type: plugin
+      slug: xophz-compass
+```
+
+#### For WordPress Themes:
+Add `.github/workflows/compass.yml` to your theme repository:
+
+```yaml
+name: Compass
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "59 23 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  pipeline:
+    uses: HalloftheGods/.github/.github/workflows/master.yml@main
+    with:
+      type: theme
+      slug: xophz-magic-hat
 ```
 
 ### Option B: Auto Version Only (`auto-version.yml`)
@@ -60,6 +88,9 @@ permissions:
 jobs:
   auto-version:
     uses: HalloftheGods/.github/.github/workflows/auto-version.yml@main
+    with:
+      type: theme # or plugin (default)
+      slug: xophz-magic-hat
 ```
 
 ---
